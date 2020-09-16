@@ -5,15 +5,15 @@ def generateRandom() {
 }
  
 def getOSParam() {
-    osAuthUrl = sh(returnStdout: true, script: "cat clouds.yaml | grep auth_url | cut -d':' -f2-").trim()
-    osProjectName = sh(returnStdout: true, script: "cat clouds.yaml | grep project_name | cut -d':' -f2-").trim()
-    osUsername = sh(returnStdout: true, script: "cat clouds.yaml | grep username | cut -d':' -f2-").trim()
-    osPassword = sh(returnStdout: true, script: "cat clouds.yaml | grep password | cut -d':' -f2-").trim()
-    osUserDomainName = sh(returnStdout: true, script: "cat clouds.yaml | grep user_domain_name | cut -d':' -f2-").trim()
-    osProjectDomainName = sh(returnStdout: true, script: "cat clouds.yaml | grep project_domain_name | cut -d':' -f2-").trim()
-    osRegionName = sh(returnStdout: true, script: "cat clouds.yaml | grep region_name | cut -d':' -f2-").trim()
-    println("${osUsername}, ${osPassword}")
-    return "--os-auth-url ${osAuthUrl} --os-project-name ${osProjectName} --os-username ${osUsername} --os-password ${osPassword} --os-user-domain-name ${osUserDomainName} --os-project-domain-name ${osProjectDomainName} --os-region-name ${osRegionName}"
+  osAuthUrl = sh(returnStdout: true, script: "cat clouds.yaml | grep auth_url | cut -d':' -f2-").trim()
+  osProjectName = sh(returnStdout: true, script: "cat clouds.yaml | grep project_name | cut -d':' -f2-").trim()
+  osUsername = sh(returnStdout: true, script: "cat clouds.yaml | grep username | cut -d':' -f2-").trim()
+  osPassword = sh(returnStdout: true, script: "cat clouds.yaml | grep password | cut -d':' -f2-").trim()
+  osUserDomainName = sh(returnStdout: true, script: "cat clouds.yaml | grep user_domain_name | cut -d':' -f2-").trim()
+  osProjectDomainName = sh(returnStdout: true, script: "cat clouds.yaml | grep project_domain_name | cut -d':' -f2-").trim()
+  osRegionName = sh(returnStdout: true, script: "cat clouds.yaml | grep region_name | cut -d':' -f2-").trim()
+  println(osPassword)
+  return "--os-auth-url ${osAuthUrl} --os-project-name ${osProjectName} --os-username ${osUsername} --os-password ${osPassword} --os-user-domain-name ${osUserDomainName} --os-project-domain-name ${osProjectDomainName} --os-region-name ${osRegionName}"
 }
  
 def waitVolumeAvailable(String volName, String provider="taco-env") {
@@ -162,6 +162,7 @@ def call(String namePrefix, String image="centos7", String flavor="m1.xlarge", I
  
     osParam = getOSParam()
     println("Ready to start VM.")
+    println(osParam)
     sh "nova ${osParam} boot ${bdm} --flavor ${flavorUuid} --nic net-id=${firstNetUuid} --nic net-id=${secondNetUuid} --nic net-id=${thirdNetUuid} --key-name jenkins ${vmName} --security-group ${securityGroup} --availability-zone ${availabilityZone} ${userData} ${confDriveParam}"
   }
   waitVMActive(name)
