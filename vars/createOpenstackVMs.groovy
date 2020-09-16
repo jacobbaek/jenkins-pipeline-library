@@ -68,11 +68,14 @@ def call(String namePrefix, String image="centos7", String flavor="m1.xlarge", I
  
   boolean bySnapshot = false
     if(image=="centos7") {
-      imageName = "CentOS-7-x86_64-2003.raw"
+      // imageName = "CentOS-7-x86_64-2003.raw"
+      imageName = "centos7"
     } else if (image=="centos8") {
-      imageName = "Centos8.0.1905-dev"
+      // imageName = "Centos8.0.1905-dev"
+      imageName = "centos8"
     } else if (image=="ubuntu") {
-      imageName = "Ubuntu-18.04-Bionic.raw"
+      // imageName = "Ubuntu-18.04-Bionic.raw"
+      imageName = "ubuntu"
     } else {
       imageName = image
     bySnapshot = true
