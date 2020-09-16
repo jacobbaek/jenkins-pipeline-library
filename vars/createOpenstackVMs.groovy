@@ -16,6 +16,7 @@ def getOSParam() {
 }
  
 def waitVolumeAvailable(String volName, String provider="taco-env") {
+  println("start to check the VM state.")
   for (i=1; i<20; i++) {
     t = 0
     volStatus = sh(returnStdout: true, script: "openstack volume list --os-cloud ${provider} | grep ${volName}").trim()
@@ -159,6 +160,7 @@ def call(String namePrefix, String image="centos7", String flavor="m1.xlarge", I
  
  
     osParam = getOSParam()
+    println("Ready to start VM.")
     sh "nova ${osParam} boot ${bdm} --flavor ${flavorUuid} --nic net-id=${firstNetUuid} --nic net-id=${secondNetUuid} --nic net-id=${thirdNetUuid} --key-name jenkins ${vmName} --security-group ${securityGroup} --availability-zone ${availabilityZone} ${userData} ${confDriveParam}"
   }
   waitVMActive(name)
