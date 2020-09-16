@@ -149,7 +149,7 @@ def call(String namePrefix, String image="centos7", String flavor="m1.xlarge", I
         bdm += " --block-device source=volume,id=${volUuid},dest=volume,size=${it},shutdown=${bdmShutdown},bootindex=${bootindex}"
       }
  
-      waitVolumeAvailable(vmName)
+      waitVolumeAvailable(vmName, ${provider})
     } else {
       snapshotUuid = sh(returnStdout: true,
         script: "openstack volume snapshot list --os-cloud ${provider} | grep ${imageName} | awk '{print \$2}' | head -1").trim()
