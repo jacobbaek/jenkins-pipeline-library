@@ -12,8 +12,7 @@ def getOSParam() {
   osUserDomainName = sh(returnStdout: true, script: "cat clouds.yaml | grep user_domain_name | cut -d':' -f2-").trim()
   osProjectDomainName = sh(returnStdout: true, script: "cat clouds.yaml | grep project_domain_name | cut -d':' -f2-").trim()
   osRegionName = sh(returnStdout: true, script: "cat clouds.yaml | grep region_name | cut -d':' -f2-").trim()
-  println(osPassword)
-  return "--os-auth-url ${osAuthUrl} --os-project-name ${osProjectName} --os-username ${osUsername} --os-password ${osPassword} --os-user-domain-name ${osUserDomainName} --os-project-domain-name ${osProjectDomainName} --os-region-name ${osRegionName}"
+  return "--os-auth-url ${osAuthUrl} --os-project-name ${osProjectName} --os-username ${osUsername} --os-password "+'${osPassword}'+" --os-user-domain-name ${osUserDomainName} --os-project-domain-name ${osProjectDomainName} --os-region-name ${osRegionName}"
 }
  
 def waitVolumeAvailable(String volName, String provider="taco-env") {
@@ -162,9 +161,7 @@ def call(String namePrefix, String image="centos7", String flavor="m1.xlarge", I
  
     osParam = getOSParam()
     println("Ready to start VM.")
-    println("${osParam}")
-    sh "echo \'${osParam}\'"
-    sh "nova \'${osParam}\' boot ${bdm} --flavor ${flavorUuid} --nic net-id=${firstNetUuid} --nic net-id=${secondNetUuid} --nic net-id=${thirdNetUuid} --key-name jenkins ${vmName} --security-group ${securityGroup} --availability-zone ${availabilityZone} ${userData} ${confDriveParam}"
+    sh "nova ${osParam} boot ${bdm} --flavor ${flavorUuid} --nic net-id=${firstNetUuid} --nic net-id=${secondNetUuid} --nic net-id=${thirdNetUuid} --key-name jenkins ${vmName} --security-group ${securityGroup} --availability-zone ${availabilityZone} ${userData} ${confDriveParam}"
   }
   waitVMActive(name)
   return name
