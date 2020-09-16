@@ -163,7 +163,7 @@ def call(String namePrefix, String image="centos7", String flavor="m1.xlarge", I
     osParam = getOSParam()
     println("Ready to start VM.")
     println("${osParam}")
-    sh "bash echo \'${osParam}\'"
+    sh "echo \'${osParam}\'"
     sh "nova \'${osParam}\' boot ${bdm} --flavor ${flavorUuid} --nic net-id=${firstNetUuid} --nic net-id=${secondNetUuid} --nic net-id=${thirdNetUuid} --key-name jenkins ${vmName} --security-group ${securityGroup} --availability-zone ${availabilityZone} ${userData} ${confDriveParam}"
   }
   waitVMActive(name)
