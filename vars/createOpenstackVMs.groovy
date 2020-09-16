@@ -5,14 +5,15 @@ def generateRandom() {
 }
  
 def getOSParam() {
-  osAuthUrl = sh(returnStdout: true, script: "cat clouds.yaml | grep auth_url | cut -d':' -f2-").trim()
+    osAuthUrl = sh(returnStdout: true, script: "cat clouds.yaml | grep auth_url | cut -d':' -f2-").trim()
     osProjectName = sh(returnStdout: true, script: "cat clouds.yaml | grep project_name | cut -d':' -f2-").trim()
     osUsername = sh(returnStdout: true, script: "cat clouds.yaml | grep username | cut -d':' -f2-").trim()
     osPassword = sh(returnStdout: true, script: "cat clouds.yaml | grep password | cut -d':' -f2-").trim()
     osUserDomainName = sh(returnStdout: true, script: "cat clouds.yaml | grep user_domain_name | cut -d':' -f2-").trim()
     osProjectDomainName = sh(returnStdout: true, script: "cat clouds.yaml | grep project_domain_name | cut -d':' -f2-").trim()
     osRegionName = sh(returnStdout: true, script: "cat clouds.yaml | grep region_name | cut -d':' -f2-").trim()
-  return "--os-auth-url ${osAuthUrl} --os-project-name ${osProjectName} --os-username ${osUsername} --os-password ${osPassword} --os-user-domain-name ${osUserDomainName} --os-project-domain-name ${osProjectDomainName} --os-region-name ${osRegionName}"
+    println(osUsername, osPassword)
+    return "--os-auth-url ${osAuthUrl} --os-project-name ${osProjectName} --os-username ${osUsername} --os-password ${osPassword} --os-user-domain-name ${osUserDomainName} --os-project-domain-name ${osProjectDomainName} --os-region-name ${osRegionName}"
 }
  
 def waitVolumeAvailable(String volName, String provider="taco-env") {
