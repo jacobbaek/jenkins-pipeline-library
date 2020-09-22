@@ -1,0 +1,215 @@
+@Library('jenkins-pipeline-library@master') _
+
+pipeline {
+  agent {
+    node {
+      label 'openstack-slave'
+      customWorkspace "workspace/"
+    }
+  }
+  environment {
+    ANSIBLE_SCP_IF_SSH = "y"
+  }
+  options {
+    timeout(time: 60, unit: 'MINUTES')
+    timestamps()
+  }
+    parameters {
+    string(name: 'PROVIDER',
+      defaultValue: 'hanu-prod',
+      description: 'The name of provider that defined clouds.yaml file.')
+    string(name: 'TACOPLAY_VERSION',
+      defaultValue: 'master', 
+      description: 'branch or tag of tacoplay (Eg, \'master\' or \'2.0.0\')')
+    string(name: 'SITE',
+      defaultValue: 'gate-centos-lb-ceph-online-aio',
+      description: 'target site(inventory) to deploy taco')
+    string(name: 'INCLUDED_APPS',
+      defaultValue: '',
+      description: 'Apps to include in tarball? (comma-separated list)')
+    string(name: 'OS',
+      defaultValue: 'centos7',
+      description: 'guest OS of target VM')
+    string(name: 'FLAVOR',
+      defaultValue: 't1.4xlarge',
+      description: 'flavor of target VM')
+    string(name: 'AZ',
+      defaultValue: 'service-az',
+      description: 'Availability Zone Name')
+    string(name: 'ARTIFACT',
+      defaultValue: 'latest-gate-centos-lb-ceph-offline-multinodes',
+      description: 'artifact filename on minio server')
+    booleanParam(name: 'REINSTALL',
+      defaultValue: false,
+      description: 'reset before install?')
+    string(name: 'TEMPEST_FAIL_THRESHOLD',
+      defaultValue: '10',
+      description: 'Threshold for failed tempest test cases')
+    booleanParam(name: 'CLEANUP',
+      defaultValue: true,
+      description: 'delete VM once job is finished?')
+    string(name: 'VERSION_FILE_NAME',
+      defaultValue: 'abcde',
+      description: 'arbitrary name of the version file that\'ll be shared to next job (Eg, \'version-190101-abcd\')')
+    booleanParam(name: 'EMPHASIZED_NOTIFICATION',
+      defaultValue: false, 
+      description: 'enable emphasized notification going to slack?')
+  }
+ 
+  stages {
+    stage ('Prepare Tacoplay') {
+      steps {
+        script {
+          println("*********************************************")
+          println("start test")
+          println("*********************************************")
+ 
+          sh """
+            if [ -d "$PWD/workspace/tacoplay" ]; then
+              rm -rf tacoplay
+            fi
+            git clone https://github.com/openinfradev/tacoplay.git
+            pwd
+          """
+          
+          sh """
+            mc cp hanu-minio/openstack/clouds.yaml .
+          """
+          
+          if (params.SITE.startsWith("gate")) {
+            /**************
+            * Gating Test *
+            **************/
+            println("Gating test selected. Creating VMs...")
+
+            // Use three net interfaces for each VM instance
+            networks = [:]
+            networks.mgmt = 'private-mgmt-offline'
+            networks.flat = 'private-data1'
+            networks.vxlan = 'private-data2'
+
+            if (params.SITE.contains("online")) {
+              online = true
+              networks.mgmt = 'private-mgmt-online'
+              if (!params.SITE.contains("multi")) {
+                VM_COUNT = 1
+              }
+              SECURITY_GROUP = "default"
+            } else {
+              SECURITY_GROUP = 'offline-rule'
+            }
+
+            deleteBdm = true
+            gatePath = "tacoplay/gate"
+            sh "pwd"
+            sh "ls -al"
+                        
+            if (online) {
+              if (params.OS.contains("ubuntu")) {
+                sh "mv $gatePath/cloudInitUbuntuOnline.sh $gatePath/cloudInit.sh"
+              } else {
+                sh "mv $gatePath/cloudInitOnline.sh $gatePath/cloudInit.sh"
+              }
+            } else {
+              if (params.OS.contains("ubuntu")) {
+                sh "mv $gatePath/cloudInitUbuntuOffline.sh $gatePath/cloudInit.sh"
+              } else {
+                sh "mv $gatePath/cloudInitOffline.sh $gatePath/cloudInit.sh"
+              }
+            }
+          
+            vmNamePrefix = createOpenstackVMs(params.SITE, params.OS, params.FLAVOR, VM_COUNT, [50, 50, 50], "$gatePath/cloudInit.sh", null, SECURITY_GROUP, params.AZ, online, deleteBdm, networks, params.PROVIDER)
+            vmMgmtIPs = getOpenstackVMinfo(vmNamePrefix, networks.mgmt, params.PROVIDER)
+            vmFlatIPs = getOpenstackVMinfo(vmNamePrefix, networks.flat, params.PROVIDER)
+            vmVxlanIPs = getOpenstackVMinfo(vmNamePrefix, networks.vxlan, params.PROVIDER)
+ 
+            vmMgmtIPs.eachWithIndex { name, ip, index ->
+              if (index==0)
+                ADMIN_NODE = ip
+            }
+ 
+            println("Waiting for VM's gateway to be ready..")
+            sh """
+              until ping -c 1 -W 3 $ADMIN_NODE
+              do
+                sleep 15
+              done
+ 
+              until ssh -o StrictHostKeyChecking=no -i jenkins.key taco@$ADMIN_NODE 'test -f /tmp/.vm_ready'
+              do
+                sleep 15
+              done
+            """
+ 
+            // Insert actual IPs into hosts.ini
+            vmMgmtIPs.eachWithIndex { name, ip, index ->
+              println("name: ${name}, IP: ${ip}, index: ${index}")
+              sh "sed -i 's/VM-NAME-${index+1}/${name}/g' inventory/${params.SITE}/hosts.ini"
+              sh "sed -i 's/VM-NAME-${index+1}/${name}/g' inventory/${params.SITE}/extra-vars.yml"
+              sh "sed -i 's/VM-NAME-${index+1}/${name}/g' inventory/${params.SITE}/*-manifest.yaml"
+              sh "sed -i 's/VM-IP-${index+1}/${ip}/g' inventory/${params.SITE}/hosts.ini"
+              sh "sed -i 's/VM-IP-${index+1}/${ip}/g' inventory/${params.SITE}/extra-vars.yml"
+              sh "sed -i 's/VM-IP-${index+1}/${ip}/g' inventory/${params.SITE}/*-manifest.yaml"
+              sh "ssh -o StrictHostKeyChecking=no -i jenkins.key taco@$ADMIN_NODE 'sudo -- sh -c \"echo ${ip} ${name} >> /etc/hosts\"'"
+              //sh "ssh -o StrictHostKeyChecking=no -i jenkins.key taco@${ip} 'sudo -- sh -c \"echo ${ADMIN_NODE} tacorepo >> /etc/hosts\"'"
+            }
+          }   // End of if(gating)
+        } 
+      }
+    }
+ 
+    stage ('Prepare Admin Node') {
+      steps {
+          script {
+ 
+            /****************************************
+            * For online gating and non-gating test *
+            ****************************************/
+            sh """
+              mv gate/adminInitOnline.sh gate/adminInit.sh
+              sed -i 's/SITE_NAME/${params.SITE}/g' gate/adminInit.sh
+              ssh -o StrictHostKeyChecking=no -i jenkins.key taco@$ADMIN_NODE 'mkdir tacoplay'
+              scp -o StrictHostKeyChecking=no -i jenkins.key -rp ./* .git taco@$ADMIN_NODE:/home/taco/tacoplay/
+              ssh -o StrictHostKeyChecking=no -i jenkins.key taco@$ADMIN_NODE 'cp /home/taco/tacoplay/gate/adminInit.sh /home/taco/'
+              scp -o StrictHostKeyChecking=no -i jenkins.key /var/lib/jenkins/.netrc taco@$ADMIN_NODE:/home/taco/
+ 
+              ssh -o StrictHostKeyChecking=no -i jenkins.key taco@$ADMIN_NODE chmod 0755 /home/taco/adminInit.sh
+              ssh -o StrictHostKeyChecking=no -i jenkins.key taco@$ADMIN_NODE /home/taco/adminInit.sh
+            """
+ 
+            // Debug cmds
+            sh "ssh -o StrictHostKeyChecking=no -i jenkins.key taco@$ADMIN_NODE 'cd tacoplay && git status && cat VERSIONS'"
+          }
+      }
+    }
+  }
+
+    stage ('Run Tacoplay') {
+      steps {
+          script {
+            sh """
+              ssh -o StrictHostKeyChecking=no -i jenkins.key taco@$ADMIN_NODE "cd tacoplay && git status && ansible-playbook -T 30 -vv -u taco -b -i inventory/${params.SITE}/hosts.ini site.yml -e @inventory/${params.SITE}/extra-vars.yml ${tacoplay_params}"
+            """
+          }
+      }
+    }
+  }
+ 
+  post {
+    always {
+        script {
+          if ( params.CLEANUP == true ) {
+            deleteOpenstackVMs(vmNamePrefix, params.PROVIDER)
+          } else {
+            echo "Skipping VM cleanup.."
+          }
+        }
+    }
+    success {
+      notifyCompleted(true, params.EMPHASIZED_NOTIFICATION)
+    }
+    failure {
+      notifyCompleted(false, params.EMPHASIZED_NOTIFICATION)
+    }
+  }
+}
